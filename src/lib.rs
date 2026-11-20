@@ -1,5 +1,6 @@
 mod render_probe;
 mod present_probe;
+mod pipeline_trace;
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -36,4 +37,5 @@ pub fn main() {
     skyline::println!("[remove-the-frame] Sonde VSync installee (timing inchange)");
     render_probe::install();
     present_probe::install();
+    pipeline_trace::install();
 }

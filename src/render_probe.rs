@@ -19,6 +19,7 @@ pub fn snapshot() -> (u32, u32) {
 
 #[skyline::hook(offset = 0x386B0FC, inline)]
 unsafe fn observe_render_index(ctx: &skyline::hooks::InlineCtx) {
+    crate::pipeline_trace::on_render();
     let raw = ctx.registers[9].w();
     LAST_RAW.store(raw, Ordering::Release);
     let n = SAMPLES.fetch_add(1, Ordering::Relaxed);
