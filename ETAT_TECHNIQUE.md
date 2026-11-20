@@ -237,3 +237,29 @@ La PR #12 a valide sur Ryujinx l'installation d'un hook dans `status_JumpSquat` 
 L'installation des deux hooks n'a lieu **qu'apres les memes validations** : deux symboles dans la meme image NRO, offsets relatifs compatibles, deux prologues exacts, en-tete `NRO0` et Build ID identique. Le nouveau hook utilise `skyline::hooks::A64InlineHook` et le callback enregistre des compteurs CPU `Present#`/`Rendu#` et le pointeur de contexte `x0`, sans modifier le jeu et sans le dereferencer. Synthese `Jump diag` toutes les 120 presentations, arret de collecte a 3840. La sonde `JumpSquat diag` est inchangee. Les compteurs sont des **jalons CPU** sans garantie de simultaneite ou de date d'affichage.
 
 **Risque / statut :** code non compile et non teste sur Ryujinx. La pose simultanee de deux hooks sur un NRO deja charge est experimentale et peut provoquer des conflits ou un crash. **Aucune modification de timing, aucun gain de frame mesure, PR brouillon.** Test recommande : 10 sauts Mario en Entrainement, comparer les sequences `Boutons joueur1` → `JumpSquat` → `Jump`, avec meme `contexte` ; verifier les deux messages `And64InlineHook ... successfully!`. En cas de crash, conserver le log et revenir a la branche #12 pour analyse. Ne pas fusionner sans accord utilisateur.
+
+
+## Validation de `JumpSquat` puis `Jump` en jeu — 20 novembre 2026 (PR #13)
+
+Troisieme execution du fichier de log fourni par l'utilisateur `Ryujinx_1.1.1403_2026-11-20_15-10-46.log`, **apres le redemarrage a la ligne 3044**. Les deux executions precedentes correspondent aux PR #11 et #12 : ne pas additionner leurs compteurs.
+
+Ryujinx 1.1.1403 / Smash 13.0.5 / Skyline + ARCropolis + `libremove_the_frame.nro`. A `00:00:17.405`, identite du NRO confirmee (`NRO0 valide`, `Build ID identique=true`, base runtime `0x2370DE8000`) et deux hooks declares installes par And64InlineHook (`JumpSquat=0x237100C5C0`, `Jump=0x2370F5A040`, chacun 20 octets ecrases). Jeu utilisable jusqu'a la fermeture ordinaire (pas de crash identifie).
+
+Sur 29 fenetres synthetiques de 120 Present, **20 entrees JumpSquat + 20 entrees Jump**. Les passages sont concentres de Present#1129 a #3093 et montrent pour chaque saut **un decalage de exactement trois jalons Present/Rendu** entre l'entree dans JumpSquat et celle dans Jump :
+- `1129 -> 1132`, `1255 -> 1258`, `1364 -> 1367`, `1468 -> 1471`, `1577 -> 1580`, `1683 -> 1686`, `1786 -> 1789`, `1890 -> 1893`, `2004 -> 2007`, `2108 -> 2111`, `2248 -> 2251`, `2346 -> 2349`, `2444 -> 2447`, `2542 -> 2545`, `2635 -> 2638`, `2729 -> 2732`, `2820 -> 2823`, `2911 -> 2914`, `2999 -> 3002`, `3090 -> 3093`.
+- L'entree Jump#3002 tombe dans la fenetre de journalisation suivante par rapport a JumpSquat#2999 : il faut **corriger une sous-estimation initiale a 19**. Les totaux corrects sont bien 20 + 20.
+- Les 20 entrees de chaque sonde portent toutes le meme pointeur brut `x0=0x11336C1B00` ; forte indication d'un seul contexte combattant dans cette sequence, mais identification formelle de Mario non demontree.
+- La sonde des boutons enregistre des fronts pour le masque `0x00000020` aux memes indices de `Present#` que JumpSquat dans les fenetres claires.
+
+**Resultat valide en jeu :** installation simultanee des deux hooks dans le NRO et observation reguliere de la succession commande HID candidate -> JumpSquat -> Jump ; ecart de 3 compteur Present pour 20 entrees appariees. **Ce chiffre n'est pas un delai ecran ni un gain d'input lag** : il peut correspondre au jump squat normal, et nos relevés utilisent des compteurs CPU de presentations sans relier la bonne image au pixel affiché. Aucune optimisation active dans cette branche. Les tests avec et sans optimisation sont encore a realiser.
+
+### Archive des branches / PR experimentales avant nettoyage
+
+Point de reprise actif : `test/observer-jump` (PR #13). Reference de sondes de rendu : `test/ordre-pipeline` (PR #3). Base stable : `main`. **La branche active descend directement de la reference** (10 commits en plus), qui descend de `main` ; leurs historiques incluent les etapes intermédiaires des PR #1, #2, #9, #10, #11, #12.
+
+Essais secondaires a conserver accessibles par les anciennes PR fermees et les SHA de leurs derniers commits (ne jamais les tenir pour valides sans nouveau test) :
+- Dispatch actif, ecran noir, PR #4 fermee : `test/avance-dispatch` a `75f9aa12fbc75143b41ad2a029b8c54eff5e1306`.
+- Flush lot pret et rendu +1/+0, PR #5/#6/#7 : pointe `test/index-rendu-sans-decalage` a `6987a97b76733df4d2cbbdbbdc83ea02d186dc36` ; le parent conserve l'historique des branches `test/flush-lot-pret` et `test/index-rendu-plus-un`.
+- Test logiciel de latence trop bruite, PR #8 : `test/mesure-latence-logicielle` a `2b65da0bf0a41c64f095d8875deb00199e7aeb2a`.
+
+Aucun de ces essais de modification de rendu n'a demontre un gain reel. Les PR historiques seront closes sans fusion ; leurs commits pourront etre retrouves par leurs SHA et les liens d'anciennes PR. La suppression effective des branches distantes ne doit intervenir qu'apres sauvegarde des references utiles. Aucun fichier local de GitHub Desktop, ni plugin Ryujinx, ni sauvegarde de jeu n'a ete modifie pendant ce nettoyage.
