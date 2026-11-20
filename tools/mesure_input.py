@@ -62,10 +62,24 @@ def comparer(paths):
     print("Mesure comparative : inclut aussi Ryujinx, Windows et la capture d'image.")
 
 
-def changed_fraction(image, baseline, pixel):
+def changed_fraction(image, baseline, pixel, stable=None):
     import numpy as np
-    return float(np.mean(np.max(np.abs(image.astype(np.int16) -
-                                       baseline.astype(np.int16)), axis=2) >= pixel))
+    changed = np.max(np.abs(image.astype(np.int16) -
+                                baseline.astype(np.int16)), axis=2) >= pixel
+    if stable is not None:
+        changed &= stable
+    return float(np.mean(changed))
+
+
+def stable_pixels(images, baseline, pixel):
+    import numpy as np
+    base = baseline.astype(np.int16)
+    activity = np.stack([
+        np.max(np.abs(image.astype(np.int16) - base), axis=2) >= pixel
+        for image in images
+    ])
+    # Ignorer les pixels qui bougent deja pendant l'attente de Mario.
+    return np.mean(activity, axis=0) <= .10
 
 
 def capture(sct, zone):
@@ -170,7 +184,7 @@ def mesurer(args):
                 captured_ns = perf_counter_ns()
 
                 if pending is not None:
-                    fraction = changed_fraction(image, pending["base"], args.pixel)
+                    fraction = changed_fraction(image, pending["base"], args.pixel, pending["stable"])
                     if fraction > pending["threshold"]:
                         if pending["first_hit"] is None:
                             pending["first_hit"] = (captured_ns, last_capture_ns or captured_ns)
@@ -209,16 +223,25 @@ def mesurer(args):
                 if pressed and not last_pressed and pending is None and (
                         sampled_ns >= ready_at and len(recent) >= 8):
                     base = np.median(np.stack(list(recent)), axis=0).astype(np.uint8)
-                    noise = max(changed_fraction(im, base, args.pixel) for im in recent)
-                    threshold = max(args.seuil, 4 * noise + .005)
-                    if threshold >= .25:
-                        print("Zone trop animee : reduire la zone ou utiliser un decor fixe.")
+                    stable = stable_pixels(recent, base, args.pixel)
+                    stable_share = float(np.mean(stable))
+                    noise = max(changed_fraction(im, base, args.pixel, stable)
+                                for im in recent)
+                    threshold = max(args.seuil, 2 * noise + .005)
+                    if stable_share < .30 or threshold >= .25:
+                        print(f"Zone difficile : {stable_share:.0%} de pixels stables, "
+                              f"bruit={noise:.1%}. Centre la zone sur Mario, "
+                              "loin des effets visuels.")
                         ready_at = sampled_ns + pause_ns
                         recent.clear()
                     else:
+                        if not rows:
+                            print(f"Calibration : {stable_share:.0%} pixels stables, "
+                                  f"bruit={noise:.1%}, seuil={threshold:.1%}.")
                         pending = {"start_ns": sampled_ns, "base": base,
-                                   "noise": noise, "threshold": threshold,
-                                   "hits": 0, "first_hit": None}
+                                   "stable": stable, "noise": noise,
+                                   "threshold": threshold, "hits": 0,
+                                   "first_hit": None}
                 last_pressed = pressed
                 last_capture_ns = captured_ns
                 sleep(.002)
