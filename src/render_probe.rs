@@ -8,10 +8,19 @@ static MOD_ZERO: AtomicU32 = AtomicU32::new(0);
 static MOD_ONE: AtomicU32 = AtomicU32::new(0);
 static MOD_TWO: AtomicU32 = AtomicU32::new(0);
 static MAX_RAW: AtomicU32 = AtomicU32::new(0);
+static LAST_RAW: AtomicU32 = AtomicU32::new(u32::MAX);
+
+pub fn snapshot() -> (u32, u32) {
+    (
+        SAMPLES.load(Ordering::Acquire),
+        LAST_RAW.load(Ordering::Acquire),
+    )
+}
 
 #[skyline::hook(offset = 0x386B0FC, inline)]
 unsafe fn observe_render_index(ctx: &skyline::hooks::InlineCtx) {
     let raw = ctx.registers[9].w();
+    LAST_RAW.store(raw, Ordering::Release);
     let n = SAMPLES.fetch_add(1, Ordering::Relaxed);
     if n >= 120 {
         return;
