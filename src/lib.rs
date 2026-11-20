@@ -1,3 +1,5 @@
+mod render_probe;
+
 use std::sync::atomic::{AtomicU32, Ordering};
 
 const VSYNC_OFFSET: usize = 0x3811014;
@@ -31,4 +33,5 @@ pub fn main() {
 
     skyline::install_hook!(observe_vsync);
     skyline::println!("[remove-the-frame] Sonde VSync installee (timing inchange)");
+    render_probe::install();
 }
