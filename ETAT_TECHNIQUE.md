@@ -1,5 +1,15 @@
 # État technique — 20 novembre 2026
 
+## Synthèse actuelle et décision de viabilité (20/11/2026)
+
+**Projet en pause / reprise non décidée.** Objectif initial : réduire de 1 à 2 frames la latence d'entrée de Smash Ultimate 13.0.5 dans Ryujinx 1.1.1403, sans accélération du gameplay ni dégradation du rendu. **Aucun gain mesuré, aucun patch de réduction de latence validé**. Les tests de boutons et de transitions de saut sont des outils d'observation, pas une optimisation.
+
+**Acquis fiables :** plugin Skyline compilé, déployé et chargé sur Ryujinx ; fonctionnement des sondes de VSync/rendu/présentation ; NRO `lua2cpp_common` identifié en mémoire et vérifié par symboles, prologues et Build ID ; dans le dernier test de la PR #13, 20 entrées `JumpSquat` et 20 `Jump`, espacées de trois indices de présentation CPU, avec forte association des fronts de bouton `0x20` à `JumpSquat`. Il s'agit de **jalons CPU**, et non de l'instant où une frame est visible. La transition de trois jalons est compatible avec la durée normale du jumpsquat ; elle ne désigne pas trois frames de latence à supprimer.
+
+**Échecs / limites :** la tentative de dispatch actif (PR #4) a provoqué un écran noir ; les essais de flush et d'index +1/+0 (PR #5-7) n'ont démontré aucune amélioration ; la mesure logicielle A/B est trop bruitée pour détecter de manière fiable un gain d'une frame. La compatibilité d'une optimisation connue sur Switch avec Ryujinx n'est pas établie. Aucun chemin technique garanti pour gagner 1 ou 2 frames n'a été identifié.
+
+**Organisation retenue :** trois branches distantes (`main`, `test/ordre-pipeline`, `test/observer-jump`) ; seules PR #3 et #13 en brouillon. Ne pas recréer une branche par test, ne pas fusionner sans autorisation. `METHODE_DE_TRAVAIL.md` formalise les règles applicables aux prochains mods. Les résultats historiques restent documentés ci-dessous. **Avant toute reprise : décider d'une méthode de mesure et d'un budget d'effort acceptable**, ou conserver le projet en pause.
+
 ## Audit d'efficacite — 20 novembre 2026
 
 **Etat actuel :** `test/observer-jump` / PR #13 n'applique aucune optimisation de latence. Ses dix hooks instrumentent VSync, rendu, presentation, scene, HID, rafraichissement, copie, demande de statut, JumpSquat et Jump. Les logs Ryujinx confirment l'installation et 20 entrees de chaque etat de saut sur la derniere session, avec 3 indices Present entre les deux. Ce decalage est coherent avec le jumpsquat normal de Mario (3 frames), mais ne mesure ni l'input lag ni l'image physiquement affichee. Le jalon CPU Present n'est pas un identifiant garanti d'image ecran.
