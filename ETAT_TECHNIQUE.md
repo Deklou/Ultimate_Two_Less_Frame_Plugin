@@ -213,3 +213,18 @@ Le callback `extern C` enregistre en atomiques les comptes d'entrée, la premiè
 Ne pas poser de hook `status_Jump` dans cette étape : valider d'abord le premier hook. Test prévu : démarrer sur branche de test, vérifier `[And64InlineHook] ... successfully!`, aller en Entraînement avec Mario et effectuer une dizaine de sauts espacés. Dans le log, chercher `JumpSquat diag` (`entrees > 0`) et les `Boutons joueur1`. Un nombre non nul confirmerait que la routine commune est traversée dans ce scénario **sans attribuer encore avec certitude l'appel au seul Mario**. Si le jeu plante, conserver le log, revenir à la branche #11 et analyser le crash avant tout nouvel essai.
 
 **Statut actuel : code préparé, non compilé et non validé sur Ryujinx. PR brouillon, ne pas fusionner.**
+
+
+### Validation en jeu PR #12 — log `Ryujinx_1.1.1403_2026-11-20_15-10-46.log` (nouveau test ajouté au même fichier)
+
+Attention : le fichier communiqué **concatène deux exécutions** de Ryujinx. Les données suivantes concernent **la seconde exécution**, à partir du second démarrage `00:00:00.005`, et non la première session de la PR #11 qui figure encore en tête.
+
+- Smash v13.0.5, Ryujinx 1.1.1403, Skyline + ARCropolis + notre NRO chargés. À `00:00:17.819`, validation complète `NRO0 valide ; Build ID identique=true ; base=0x48B6B97000`.
+- À cet instant, `A64InlineHook` installé avec confirmation explicite : `inline hook 0x48b6dbb5c0->0x84dc33c successfully! 20 bytes overwritten`. **Hook mémoire JumpSquat validé pour cette exécution**.
+- 31 fenêtres de 120 présentations (`Present#120` à `#3720`). **13 entrées `status_JumpSquat`** observées entre `Present#1785` et `#3127`, dans 12 fenêtres non nulles (une fenêtre contient deux entrées). Aucune des entrées dans les premières fenêtres ne permet d'inférer l'absence de saut avant la mise en place du hook ou hors de cette routine.
+- Plusieurs correspondances ponctuelles exactes entre masque `0x00000020` dans `Boutons joueur1` et le compteur `Present#` d'entrée `JumpSquat` : `#1785`, `#1903`, `#2007`, `#2366`, `#2484`, `#2597`, `#2704`, `#2819`, `#2924`, `#3025` et `#3127`. Pour `#2160` et `#2258`, la fenêtre comportait deux appuis du même masque. Le contexte brut `x0` capturé vaut systématiquement `0x11741D7A00` pour ces 13 entrées ; il n'a pas été déréférencé ni attribué formellement à Mario.
+- Le log va jusqu'à `Present#3720`, puis montre une fin de session ordinaire (avec les avertissements habituels `TerminationRequested` et `DequeueBuffer: Busy`) ; pas d'indice de crash lié au hook pendant ce test.
+
+**Conclusion vérifiée en jeu :** l'interception de `L2CFighterCommon::status_JumpSquat` fonctionne sur Ryujinx dans cette configuration et le masque d'appui `0x20` est fortement associé aux appels de préparation du saut. **Ne pas conclure que délai d'input lag = zéro** : les compteurs `Present#` et `Rendu#` sont de simples jalons CPU lus par deux callbacks, sans horodatage sous-frame ni corrélation avec l'image affichée. Enregistrer des index égaux n'établit ni simultanéité effective ni absence de latence. Le hook `status_Jump` n'est pas encore installé/testé ; la comparaison vanilla/optimisé reste à faire. Aucun gain de frame mesuré.
+
+**Suite minimale :** sur une nouvelle branche expérimentale, ajouter un hook `status_Jump` protégé par la même validation NRO, avec capture des transitions par appui sous forme d'une séquence d'événements (plutôt que seulement première/dernière entrée de fenêtre), puis déterminer si l'observation des passages `JumpSquat` et `Jump` permet des mesures CPU exploitables. Ne pas fusionner les PR sans autorisation.
