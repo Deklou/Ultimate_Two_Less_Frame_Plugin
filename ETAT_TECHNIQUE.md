@@ -115,3 +115,36 @@ La sonde `StatusModule__change_status_request_impl` ne remonte qu'une seule dema
 Suite : garder la sonde des boutons comme point de référence passif, rechercher dans Ghidra le **chemin réellement utilisé pour appliquer un saut au combattant**, puis n'instrumenter que l'état retenu avec validation en entraînement. Les indices `Present` et `Rendu` visibles sont des compteurs CPU, pas des frames GPU attestées. Ne pas modifier les textures/flush/VSync sur cette branche de diagnostic.
 
 **Statut : PR #10 compilée, déployée et sondes observées en jeu selon le log ; seul le déclenchement des hooks est validé, pas la mesure d'input lag.**
+
+
+## Analyse du saut dans Ghidra Smash — 20 novembre 2026, lecture seule
+
+Programme inspecté : `main`, Smash 13.0.5 AArch64, base Ghidra `0x7100000000`. Aucun changement du programme ni du projet Ghidra. L'objectif est de trouver le **statut réellement appliqué** après une transition d'input, pas de compter des demandes parfois ignorées.
+
+### Valeurs vérifiées directement dans le binaire
+
+- `FIGHTER_STATUS_KIND_JUMP_SQUAT = 10 (0x0A)` : chaîne `0x7104414A82` enregistrée à `0x710210F7AC..F7BC`, où `w2=w23`. `w23` a été chargé à `#0xA` à `0x710210F52C` sans réécriture dans l'intervalle.
+- `FIGHTER_STATUS_KIND_JUMP = 11 (0x0B)` : chaîne `0x710437E37A` enregistrée à `0x710210F7C0..F7D0`, où `w2=w24`. `w24` a été chargé à `#0xB` à `0x710210F544` sans réécriture dans l'intervalle.
+- `FIGHTER_PAD_CMD_CAT1_FLAG_JUMP = 0x00100000` : chaîne `0x71042EA17B`, enregistrement `0x71021249C8..D8` avec `mov w2,#0x100000`.
+- `FIGHTER_PAD_CMD_CAT1_FLAG_JUMP_BUTTON = 0x00200000` : chaîne `0x71043D201D`, enregistrement `0x71021249DC..EC` avec `mov w2,#0x200000`.
+- `CONTROL_PAD_BUTTON_JUMP = 2` est un identifiant de bouton de la couche Control (chaîne `0x7104250BB0` enregistrée `0x7102101E24..34`), **pas** un bit du masque HID. Le `0x20` relevé dans les logs PR #10 est un masque brut du contrôleur ; son interprétation comme saut **n'est pas démontrée** par ces constantes.
+
+### Chemin de commande / changement de statut identifié, mais indirect
+
+- `app::lua_bind::ControlModule__get_command_flag_cat_impl` à `0x7102001630` (offset Skyline `0x2001630`) charge `BOMA+0x48` puis effectue un saut virtuel par `vtable+0x350` vers la méthode produisant les flags de commande. Le wrapper ne contient pas la logique de filtrage du saut.
+- `app::lua_bind::StatusModule__status_kind_impl` à `0x7102087720` (offset `0x2087720`) charge `BOMA+0x40` et saute à la méthode virtuelle `+0x110` : **point d'accès à l'état courant**, qu'il faudrait observer sur le combattant concerné (et pas simplement sur un appel arbitraire).
+- `StatusModule__status_kind_next_impl` à `0x7102087730` : accès virtuel `+0x118` à l'état suivant. `StatusModule__set_status_kind_interrupt_impl` à `0x7102087740` : écrit une intention d'interruption via la virtuelle `+0x120` (ne prouve pas qu'un état est effectivement appliqué).
+- `StatusModule__change_status_request_from_script_impl` à `0x71020876E0` (offset `0x20876E0`) transfère une demande de statut, paramètre `w1`, par `vtable+0x50`. Ce chemin est **candidat non testé sur Ryujinx**.
+- La PR #10 observe uniquement `change_status_request_impl` à `0x71020876C0` (virtuelle `+0x48`) : **1 seul événement code 4** pendant une session comportant de nombreux sauts. Il ne faut pas réutiliser ce hook comme « saut appliqué ».
+
+### Limite structurelle de l'analyse du seul `main`
+
+- `FUN_71033AC490` répartit les scripts de statut par combattant. Pour Mario, la branche `case 0` aboutit à `0x71033AC630`, qui saute vers `lua2cpp::create_agent_fighter_status_script_mario` à `0x71039C29B0`.
+- `0x71039C29B0` est **un trampoline d'import**, qui lit une cible via `0x71052A03B8` et branche vers un symbole externe `0x7107559000`. Ghidra Smash ne fournit aucune instruction à cette cible externe dans le `main` actuel. On ne peut donc pas prétendre avoir localisé **le code effectif de décision du saut de Mario** dans ce seul binaire.
+- Les noms et valeurs de constantes prouvent les identifiants disponibles dans le jeu, **pas le chemin exact exécuté ni la frame à laquelle le combattant les consomme**. Éviter de déduire la latence des seuls index de présentation ou des requêtes de statut.
+
+### Prochain point technique à confirmer
+
+Deux directions possibles, à valider séparément avant tout patch : (1) observer en jeu les passages effectifs `WAIT -> JUMP_SQUAT (10) -> JUMP (11)` du **même combattant**, avec son BattleObjectModuleAccessor identifié, et les comparer aux fronts d'appui déjà validés ; ou (2) analyser en lecture seule le module de scripts de statut réellement chargé pour Mario, s'il est disponible. Un simple hook du wrapper `status_kind` **à l'entrée** n'a pas accès à sa valeur de retour puisqu'il s'agit d'un saut terminal `br` ; ne pas le présenter comme une mesure de statut sans instrumentation complémentaire vérifiée.
+
+**Résultat : le statut cible (10 puis 11) et le flag de commande saut par bouton (0x200000) sont identifiés dans le binaire 13.0.5, mais le point de transition réellement exécuté et sa correspondance avec une frame affichée ne sont toujours pas confirmés en jeu. Aucune nouvelle sonde ni modification de timing déployée à ce stade.**
