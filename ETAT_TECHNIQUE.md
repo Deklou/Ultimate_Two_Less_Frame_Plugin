@@ -263,3 +263,8 @@ Essais secondaires a conserver accessibles par les anciennes PR fermees et les S
 - Test logiciel de latence trop bruite, PR #8 : `test/mesure-latence-logicielle` a `2b65da0bf0a41c64f095d8875deb00199e7aeb2a`.
 
 Aucun de ces essais de modification de rendu n'a demontre un gain reel. Les PR historiques seront closes sans fusion ; leurs commits pourront etre retrouves par leurs SHA et les liens d'anciennes PR. La suppression effective des branches distantes ne doit intervenir qu'apres sauvegarde des references utiles. Aucun fichier local de GitHub Desktop, ni plugin Ryujinx, ni sauvegarde de jeu n'a ete modifie pendant ce nettoyage.
+
+
+### Reorganisation GitHub effectuee le 20 novembre 2026
+
+Les PR #1, #2 et #5 a #12 ont ete fermees sans fusion (#4 etait deja fermee). Il reste uniquement les PR #3 (base `main`, branche `test/ordre-pipeline`) et #13 (base `test/ordre-pipeline`, branche `test/observer-jump`), toutes deux en brouillon. Les branches distantes n'ont **pas** ete supprimees : leur suppression doit etre faite manuellement, le connecteur GitHub actuellement disponible n'offrant pas cette action. Aucun fichier local, `Cargo.lock`, mod Ryujinx ou sauvegarde n'a ete modifie.
