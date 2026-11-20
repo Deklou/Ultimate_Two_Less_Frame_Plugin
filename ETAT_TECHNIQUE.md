@@ -107,3 +107,39 @@ Fichier log utilisateur : `Ryujinx_1.1.1403_2026-11-20_11-16-16.log` (Ryujinx 1.
 Branche `test/index-rendu-sans-decalage` issue de la PR #6, sans reprendre le patch de dispatch défectueux de la PR #4. À `0x710386B0FC` (Smash 13.0.5 ; base `0x7100000000`), Ghidra Smash vérifie l'instruction `add w9, w9, #2` (`0x11000929`). Nouvelle hypothèse isolée : remplacer cette instruction par `nop` (`0xD503201F`), soit `+0` avant le modulo 3. Tous les autres mécanismes sont inchangés par rapport à la PR #6 : flush « lot prêt », VSync active, trois textures, pacer et quatre sondes. Le patch vérifie les quatre mots adjacents avant écriture et relit l'instruction après application.
 
 **Cette variante +0 n'est pas compilée, pas testée en jeu et son avantage en input lag n'est pas démontré.** Elle peut afficher un buffer périmé, répéter des images, provoquer des glitches ou bloquer. Le succès de la PR #6 ne garantit pas la sécurité de ce changement. Avant essai, il faut confirmer le bon affichage et la vitesse de la PR #6, puis comparer A/B à réglages identiques. En cas d'anomalie, fermer Ryujinx et revenir à `test/index-rendu-plus-un` (PR #6) ou `test/flush-lot-pret` (PR #5), toutes deux conservées. Aucun changement de configuration, mod tiers ou sauvegarde.
+
+
+## Analyse lecture des inputs -> traitement -> rendu (Ghidra en lecture seule, 20 novembre 2026)
+
+Cible inspectée : programme `main` AArch64 chargé dans Ghidra Smash, base `0x7100000000`. Tous les pointeurs ci-dessous sont des adresses Ghidra absolues ; soustraire la base pour obtenir un offset Skyline. Aucune mutation du projet Ghidra, du jeu ou du plugin.
+
+### Lecture HID : chemin vérifié dans le code
+
+- Lors de l'initialisation des contrôleurs, la boucle principale (`FUN_7103741F40`) passe par `0x71037427AC` (`nn::hid::InitializeNpad`), `0x71037427DC` (`SetSupportedNpadStyleSet`) et `0x71037427E8` (`SetSupportedNpadIdType`). Elle construit les objets de contrôleur via `FUN_7103666E30` à `0x710374285C`, puis les place notamment dans le tableau `0x7105339860..0x71053398A8` (10 emplacements).
+- `FUN_7103667C90` (offset Skyline `0x3667C90` ; premiers mots `FC1A0FE8 A90167FA`) parcourt ces objets et appelle leur méthode virtuelle `+0x10` pour actualiser leur état. La boucle principale l'appelle à `0x710374C894` et `0x710374CAB8`. Cela ne prouve pas que les deux chemins sont empruntés à chaque frame ; plusieurs branches contrôlent leur exécution.
+- L'objet interne du contrôleur créé par `FUN_7103666E30` utilise la table virtuelle `0x7105238EF0`. Son entrée `+0x10`, lue dans la table, pointe vers `0x7103667210` (offset Skyline `0x3667210`, premiers mots `D10183FF A9044FF4`). **Ghidra n'a pas défini cette routine comme fonction** ; sa lecture a été faite par hexdump Ghidra puis décodage des instructions AArch64 `BL`, sans modification du binaire :
+  - `0x7103667234` appelle l'import `nn::hid::GetNpadStyleSet` (`0x71039C6F30`).
+  - `0x7103667280` appelle `nn::hid::GetNpadState` à `0x71039C6F80`.
+  - `0x71036672FC` appelle une autre surcharge à `0x71039C6FA0`.
+  - `0x71036673A8`, `0x7103667400` et `0x7103667458` appellent trois autres surcharges à `0x71039C6FC0`, `0x71039C6FD0`, `0x71039C6FE0`.
+  Ces branchements sont **confirmés par les octets des instructions**. Ils n'apparaissent pas dans les xrefs de fonctions de Ghidra parce que cette routine est non définie. En pratique, **`0x3667210` est le premier candidat sérieux pour une sonde passive de lecture des inputs**. Son exécution et sa fréquence sur Ryujinx restent à valider.
+
+### Propagation et traitement du contrôleur
+
+- `FUN_7103762EC0` (offset `0x3762EC0`) lit jusqu'à 10 états depuis `0x7105339860..98A8` et recopie notamment les champs `+0x08`, `+0x0C` (masques), les axes et d'autres données après conversion. Cette routine est appelée à `0x710375F054` par `FUN_710375F020`, elle-même appelée depuis la boucle principale à `0x710374C89C` et `0x710374CABC`, après `FUN_7103667C90` sur les chemins où celui-ci est exécuté. **C'est une copie/normalisation de contrôleurs, pas la preuve que le combattant a déjà exécuté son action.**
+- `FUN_710337B690` (offset `0x337B690`, premiers mots `D10283FF FD001BE8`) lit ces mêmes structures globales et des masques de boutons, puis appelle `FUN_710337B400` avec divers indicateurs. Un appel est repéré à `0x7101EF7504` ; son contenant n'est pas défini comme fonction par Ghidra. Cela en fait un **candidat de traitement/mappage des commandes**, non encore vérifié comme point où un saut de Mario est effectivement accepté par la simulation.
+- Les wrappers `app::lua_bind::ControlModule__get_trigger_impl` à `0x71020013B0`, `get_button_impl` à `0x71020013E0` et `get_pad_flag_impl` à `0x7102001620` délèguent à des méthodes virtuelles ; les wrapper eux-mêmes ne démontrent ni le moment de lecture physique ni une consommation exactement une fois par frame.
+
+### Lien au pipeline d'affichage (partiel)
+
+- Dans la boucle principale `FUN_7103747820`, un compteur `0x710593B460` est incrémenté à `0x710374CAAC` et `0x710374CBE8`. Il est un candidat pour dater les passages CPU, mais **pas encore confirmé comme compteur univoque de frames simulées**.
+- Le gestionnaire `FUN_7103725030` (offset `0x3725030`) est appelé depuis plusieurs branches ; ce n'est pas une preuve directe de simulation d'un combat.
+- La présentation passe par `FUN_71038701E0` (appelée à `0x7103748128`), qui fait tourner `state+0xF0..0xFC`. La sélection des textures à `0x710386B0FC` reste `(raw+2) % 3` dans le binaire d'origine. Ces indices cycliques ne sont **pas des identifiants uniques de frames**, et ne permettent pas à eux seuls de conclure sur le délai de rendu ou d'affichage.
+
+### Décision technique
+
+**Ne pas tenter de retirer une autre frame.** Prochaine expérience utile : un diagnostic **passif** fondé sur `0x3667210` (transition des boutons HID du joueur 1), `0x337B690` (mappage candidat), un compteur de simulation à confirmer, puis le rattachement d'un identifiant de frame de rendu à la présentation réelle. En premier lieu vérifier en jeu que ces sondes se déclenchent dans cet ordre et uniquement pour les contrôles visés, sans ralentir le jeu. Enregistrer en mémoire les événements et ne journaliser qu'en fin de lot pour limiter la perturbation de timing.
+
+Comparer une **base de référence avec le diagnostic passif seul** aux variantes PR #5/#6/#7 avec le même diagnostic, afin d'isoler les effets des patchs. Ne pas confondre une différence de compteurs de CPU avec des frames réellement présentées. Si la corrélation entre une commande et la texture effectivement présentée reste impossible, le diagnostic devra être rapporté comme partiel, **pas** comme une mesure validée d'input delay.
+
+État : **reverse engineering vérifié dans Ghidra (lecture seule)** pour les appels et les champs précisés ; **aucun hook de mesure interne compilé, exécuté ou validé sur Ryujinx**. Le test visuel Windows précédent était trop dispersé pour déterminer un gain de 1 frame. Ne pas utiliser le résultat comme preuve d'efficacité de la PR #7.
