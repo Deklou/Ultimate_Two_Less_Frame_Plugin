@@ -27,3 +27,12 @@ La commande donne les médianes, percentiles 10/90, intervalles de capture et di
 Limites : l'outil mesure **l'arrivée du bouton dans Windows jusqu'au premier changement de pixels capturé à l'écran par Windows**, pas l'instant exact du clic physique et pas les seules étapes internes du moteur. La détection peut être trompée par les animations au repos, un décor mobile ou un effet de rendu. Elle dépend de la vitesse de capture, de l'animation de Mario et de la pile graphique Ryujinx/Windows. Une capture trop lente (intervalle >12 ms) ou moins de 15 détections rend la comparaison fragile. Ne conclure à une frame gagnée qu'avec des mesures répétées, mêmes réglages et sans artefact visuel. Pour isoler strictement l'input→simulation→présentation du jeu, il faudra une instrumentation corrélant un identifiant de frame entre ces trois étapes : ce n'est **pas encore** ce que fait ce script.
 
 Ce programme n'injecte aucune commande, il observe uniquement la manette et les pixels ; il est indépendant des PR #5, #6 et #7. Son analyse CSV est testée sur données synthétiques ; **acquisition Windows/manette non encore validée en conditions réelles**.
+
+
+## Correction de calibration après essais utilisateur
+
+En mode Entraînement sur décor immobile, l'ancien script pouvait indiquer `Zone trop animee` à chaque saut : le calcul `4 × bruit` et le rejet à 25 % tenaient compte des animations au repos de Mario. La mesure ne démarrait pas (CSV avec `0/0`).
+
+Le correctif exclut de la comparaison les pixels qui changent pendant la calibration **avant** le saut. Il indique le pourcentage de pixels stables, le bruit et le seuil retenu. Si moins de 30 % de la zone est stable, il refuse encore la mesure pour éviter un résultat trompeur. Cette détection visuelle reste exploratoire : la présence d'une caméra mobile ou d'effets peut provoquer des faux positifs. Aucun gain d'input lag ne doit être annoncé sans répétitions et contrôle de la cohérence des sauts.
+
+Pour reprendre un petit essai, récupérer la dernière version de `test/mesure-latence-logicielle` dans GitHub Desktop (Fetch puis Pull), sans toucher au NRO, et relancer : `py tools\mesure_input.py --version pr7 --essais 5`. Le message `Calibration : xx% pixels stables` indique que la zone a passé le contrôle. Si aucune mesure n'aboutit, relever le pourcentage affiché avant d'ajuster l'outil.
