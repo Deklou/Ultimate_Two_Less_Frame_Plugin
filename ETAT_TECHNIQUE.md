@@ -10,4 +10,8 @@ Ghidra Smash (lecture seule) : import `nn::vi::GetDisplayVsyncEvent` à `0x71039
 
 Objectif expérimental : gain mesurable d'environ 1 frame, puis éventuellement 2, **sans augmenter la cadence du gameplay**. Référence nécessaire : mesurer input → affichage et confirmer que la vitesse en combat reste normale.
 
-Statut de cette branche : source du plugin de diagnostic uniquement, **sans hook actif, sans réduction de latence, sans compilation ni test en jeu**. Vérifier la toolchain avant compilation ; tester le chargement isolément, puis un seul hook vérifié à la fois.
+Compilation locale : `cargo skyline build --release` terminée avec succès le 20 novembre 2026 sur WSL2 / Rust 1.100.0 / cargo-skyline 3.5.0 (sortie de compilation communiquée par l'utilisateur).
+
+Déploiement : `bash ./build_deploy.sh` compile et copie uniquement `libremove_the_frame.nro` dans le Ryujinx portable, après contrôle du dossier et d'ARCropolis. Toute version précédente de ce même NRO est sauvegardée hors du dossier Skyline (`.deploy-backups/`). Script contrôlé syntaxiquement et simulé, **pas encore testé sur le PC de l'utilisateur**. Fermer Ryujinx avant le déploiement.
+
+Statut de cette branche : plugin de diagnostic uniquement, **sans hook actif, sans réduction de latence et pas encore testé en jeu**. Tester le chargement isolément, puis un seul hook vérifié à la fois.
