@@ -2,6 +2,7 @@ mod render_probe;
 mod present_probe;
 mod pipeline_trace;
 mod input_trace;
+mod nro_probe;
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -40,4 +41,5 @@ pub fn main() {
     present_probe::install();
     pipeline_trace::install();
     input_trace::install();
+    nro_probe::install();
 }

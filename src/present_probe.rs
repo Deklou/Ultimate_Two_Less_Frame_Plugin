@@ -17,6 +17,7 @@ static WITHOUT_RENDER: AtomicU32 = AtomicU32::new(0);
 unsafe fn observe_present(ctx: &skyline::hooks::InlineCtx) {
     crate::pipeline_trace::on_present();
     crate::input_trace::on_present();
+    crate::nro_probe::on_present();
     let n = COUNT.fetch_add(1, Ordering::Relaxed);
     if n >= 120 {
         return;
