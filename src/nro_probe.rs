@@ -128,10 +128,14 @@ pub fn on_present() {
         matches, expected_base, runtime[0], runtime[1], runtime[2], runtime[3], runtime[4]
     );
     COMPLETE.store(true, Ordering::Relaxed);
+    if matches {
+        // Le hook n'est installe qu'apres correspondance complete avec le NRO extrait.
+        crate::jump_trace::install(squat);
+    }
 }
 
 pub fn install() {
     skyline::println!(
-        "[remove-the-frame] NRO saut : validation des symboles active, aucun hook NRO installe"
+        "[remove-the-frame] NRO saut : validation des symboles active, JumpSquat sous controle d'identite"
     );
 }
