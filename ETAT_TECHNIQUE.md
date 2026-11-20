@@ -190,3 +190,15 @@ Si l'un des symboles n'est pas disponible, il attend d'autres presentations. Sin
 Cette vérification montre au mieux que le module actif a les mêmes offsets/prologues et le même Build ID que le fichier fourni. **Elle ne prouve pas encore que les transitions 10/11 sont exécutées sur le combattant testé**, ni qu'une frame GPU est affichée plus vite. La recherche à la présentation peut manquer un module non chargé ou déchargé (limite 3840 présentations) et peut nécessiter une autre stratégie. Aucun hook `A64InlineHook` n'est installé dans `lua2cpp_common`.
 
 **Statut : PR de diagnostic préparée, non compilée, non testée sur Ryujinx, non fusionnée.** Pour le test initial, rester en mode Entraînement au moins jusqu'au message `NRO saut` indiquant `Build ID identique` ou `symboles indisponibles` ; partager les lignes correspondantes du log. Aucun test chronometre d'input lag n'est pertinent ici.
+
+
+### Test Ryujinx de la PR #11 — 20 novembre 2026, log `Ryujinx_1.1.1403_2026-11-20_15-10-46.log`
+
+**Validé en jeu sur Ryujinx 1.1.1403 / Smash v13.0.5** (log de lancement : application chargée à 00:00:00.916). Notre NRO et ARCropolis sont chargés ; le diagnostic commence à 00:00:07.265. À 00:00:21.808, au **premier contrôle après 120 présentations**, le log donne :
+`[remove-the-frame] NRO saut : NRO0 valide ; Build ID identique=true ; base=0x667961A000 ; ID=[7A17F513,15F0867E,AA221A0F,AC1E619E,7C3910D0]`
+
+Résultat : les deux symboles JumpSquat / Jump ont été résolus, leurs offsets relatifs et leurs prologues correspondent au NRO extrait, l'en-tête NRO0 est valide, et le Build ID correspond. L'incertitude sur **l'identité du module chargé dans cette exécution** est levée. La base `0x667961A000` est une adresse runtime liée à **cette seule exécution**, à ne pas figer dans le code.
+
+Le jeu a ensuite produit 18 fenêtres d'input diagnostic avant fermeture, sans crash indiqué dans le log ; il n'y a eu **aucun hook NRO** dans cette PR. Le log signale `DequeueBuffer: Busy` à la fermeture, sans preuve de lien avec la sonde. Ce test ne valide ni l'interception des passages dans les routines JumpSquat / Jump, ni la correspondance avec Mario, ni une réduction de latence.
+
+**Prochaine étape** : créer sur une **nouvelle branche de test** une sonde de comptage des entrées `status_JumpSquat` et `status_Jump`, après la même vérification d'identité du NRO actif, avec un journal synthétique par 120 présentations et sans modification du timing. Tout hook dans le NRO sera expérimental jusqu'à validation sur Ryujinx.
