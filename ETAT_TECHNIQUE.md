@@ -102,3 +102,16 @@ Une nouvelle sonde candidate est posée à `0x71020876C0` (offset `0x20876C0`, s
 Le diagnostic affiche toutes les 120 présentations, durant 32 fenêtres maximum, le nombre de lectures HID, copies, échantillons valides, fronts montants/descendants de boutons et demandes de statut. Les premières et dernières transitions d'une fenêtre et les premières/dernières demandes de statut portent les compteurs CPU `Present#` et `Rendu#` ainsi que leur masque ou code brut. Ces compteurs n'identifient pas une image visible ni une latence causale. Pas de logs individuels depuis les hooks, seuls les résumés sont écrits au moment de la présentation. Les accès aux états sont conditionnés à des pointeurs non nuls et à `state+0xB8`. Quatre hooks restent soumis à une garde de signature Ghidra.
 
 **Statut : code préparé pour la PR suivante, non compilé et non testé en jeu.** Avant d'interpréter les résultats, vérifier d'abord que le champ de boutons change sur de vrais sauts en entraînement, et que la sonde de statut est appelée lors de ces actions. Si l'un des deux ne réagit pas, corriger l'instrumentation plutôt que de déduire un délai. Ne pas fusionner ; préserver les sauvegardes et plugins tiers.
+
+
+## Résultat Ryujinx PR #10 — 20 novembre 2026, log 14-04-07
+
+Log utilisateur `Ryujinx_1.1.1403_2026-11-20_14-04-07.log`, Smash 13.0.5 : les 4 hooks `lecture HID`, `actualisation`, `masque de boutons` et `demandes de statut` ont été installés. La collecte couvre 27 fenêtres sur 32 avant fermeture volontaire (~1 min 20 s), sans exception fatale imputable au plugin. Sur les fenêtres régulières de 120 présentations : HID=960, actualisation=120, copies=120, `boutons_valides=120`.
+
+La sonde du premier slot `state+0x08` a enregistré des transitions d'appuis et de relâchements, avec plusieurs valeurs brutes (`0x20` surtout, mais aussi `0x04`, `0x02`, `0x08`). Dans les fenêtres 16 à 26, les appuis sur `0x20` apparaissent environ une fois par fenêtre, cohérents avec des tests de boutons espacés. Cela **valide la lecture des transitions de boutons**, mais l'association exacte de `0x20` à l'action « saut » reste à contrôler avec la configuration manette ; on ne peut pas déduire la latence.
+
+La sonde `StatusModule__change_status_request_impl` ne remonte qu'une seule demande, code brut `4`, après `Present#737`/`Rendu#737`, fenêtre 7 ; **aucune demande observée pendant les fenêtres 16–26 contenant chacune un appui `0x20`**. Ce wrapper n'est donc pas un repère fiable de la consommation de l'input dans le combattant, et ne doit pas servir à calculer le délai bouton→simulation.
+
+Suite : garder la sonde des boutons comme point de référence passif, rechercher dans Ghidra le **chemin réellement utilisé pour appliquer un saut au combattant**, puis n'instrumenter que l'état retenu avec validation en entraînement. Les indices `Present` et `Rendu` visibles sont des compteurs CPU, pas des frames GPU attestées. Ne pas modifier les textures/flush/VSync sur cette branche de diagnostic.
+
+**Statut : PR #10 compilée, déployée et sondes observées en jeu selon le log ; seul le déclenchement des hooks est validé, pas la mesure d'input lag.**
