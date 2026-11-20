@@ -69,7 +69,7 @@ unsafe fn dispatch_when_ready(state: u64, mode: u32) {
     IN_EXTRA.store(false, Ordering::Release);
 }
 
-pub fn install() {
+pub fn install() -> bool {
     let text = unsafe {
         skyline::hooks::getRegionAddress(skyline::hooks::Region::Text) as *const u32
     };
@@ -83,9 +83,10 @@ pub fn install() {
     };
     if observed != DISPATCH_SIGNATURE {
         skyline::println!("[remove-the-frame] Flush lot pret : signature inconnue, inactif");
-        return;
+        return false;
     }
 
     skyline::install_hook!(dispatch_when_ready);
     skyline::println!("[remove-the-frame] Flush lot pret : installe, attente 120 presentations");
+    true
 }

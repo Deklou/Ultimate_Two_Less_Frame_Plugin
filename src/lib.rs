@@ -2,6 +2,7 @@ mod render_probe;
 mod present_probe;
 mod pipeline_trace;
 mod dispatch_ready;
+mod texture_index;
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -36,8 +37,10 @@ pub fn main() {
 
     skyline::install_hook!(observe_vsync);
     skyline::println!("[remove-the-frame] Sonde VSync installee (timing inchange)");
-    render_probe::install();
     present_probe::install();
     pipeline_trace::install();
-    dispatch_ready::install();
+    if dispatch_ready::install() {
+        texture_index::install();
+    }
+    render_probe::install();
 }

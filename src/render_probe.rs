@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
-const RENDER_OFFSET: usize = 0x386B0FC;
-const RENDER_EXPECTED: [u32; 4] = [0x11000929, 0x5295556A, 0x72B5554A, 0x9BAA7D2A];
+const RENDER_OFFSET: usize = 0x386B100;
+const RENDER_EXPECTED: [u32; 4] = [0x5295556A, 0x72B5554A, 0x9BAA7D2A, 0xD361FD4A];
 
 static SAMPLES: AtomicU32 = AtomicU32::new(0);
 static MOD_ZERO: AtomicU32 = AtomicU32::new(0);
@@ -17,18 +17,19 @@ pub fn snapshot() -> (u32, u32) {
     )
 }
 
-#[skyline::hook(offset = 0x386B0FC, inline)]
+#[skyline::hook(offset = 0x386B100, inline)]
 unsafe fn observe_render_index(ctx: &skyline::hooks::InlineCtx) {
     crate::pipeline_trace::on_render();
     let raw = ctx.registers[9].w();
-    LAST_RAW.store(raw, Ordering::Release);
+    let selected = raw % 3;
+    LAST_RAW.store(selected, Ordering::Release);
     let n = SAMPLES.fetch_add(1, Ordering::Relaxed);
     if n >= 120 {
         return;
     }
 
     MAX_RAW.fetch_max(raw, Ordering::Relaxed);
-    match raw % 3 {
+    match selected {
         0 => { MOD_ZERO.fetch_add(1, Ordering::Relaxed); }
         1 => { MOD_ONE.fetch_add(1, Ordering::Relaxed); }
         _ => { MOD_TWO.fetch_add(1, Ordering::Relaxed); }
@@ -36,7 +37,7 @@ unsafe fn observe_render_index(ctx: &skyline::hooks::InlineCtx) {
 
     if n == 119 {
         skyline::println!(
-            "[remove-the-frame] Rendu : 120 index, mod3=[{}, {}, {}], max_brut={}",
+            "[remove-the-frame] Rendu apres addition : 120 index, mod3=[{}, {}, {}], max_avant_mod={}",
             MOD_ZERO.load(Ordering::Relaxed),
             MOD_ONE.load(Ordering::Relaxed),
             MOD_TWO.load(Ordering::Relaxed),
