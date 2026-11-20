@@ -1,0 +1,4 @@
+/target/
+*.nro
+/.deploy-backups/
+/mesures/
