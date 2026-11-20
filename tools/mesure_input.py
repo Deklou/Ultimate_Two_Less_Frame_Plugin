@@ -25,7 +25,7 @@ def percentiles(vals):
 
 def afficher_resultats(rows, name):
     vals = [float(r["latence_ms"]) for r in rows
-            if r.get("detecte") == "1" and r.get("latence_ms")]
+            if str(r.get("detecte")) == "1" and r.get("latence_ms")]
     print(f"{name} : {len(vals)}/{len(rows)} essais detectes")
     if not vals:
         return
@@ -33,7 +33,7 @@ def afficher_resultats(rows, name):
     print(f"  p10={p10:.2f} ms, mediane={p50:.2f} ms, p90={p90:.2f} ms")
     print(f"  mediane en frames a 60 FPS : {p50/16.6667:.2f}")
     steps = [float(r["pas_capture_ms"]) for r in rows
-             if r.get("detecte") == "1" and r.get("pas_capture_ms")]
+             if str(r.get("detecte")) == "1" and r.get("pas_capture_ms")]
     if steps:
         step = median(steps)
         print(f"  intervalle entre captures : {step:.2f} ms")
@@ -49,7 +49,7 @@ def comparer(paths):
         name = rows[0]["version"] if rows else str(path)
         afficher_resultats(rows, name)
         vals = [float(r["latence_ms"]) for r in rows
-                if r.get("detecte") == "1" and r.get("latence_ms")]
+                if str(r.get("detecte")) == "1" and r.get("latence_ms")]
         if len(vals) >= 15:
             series.append((name, median(vals)))
         else:
