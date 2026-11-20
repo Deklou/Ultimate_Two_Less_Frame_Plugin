@@ -1,6 +1,6 @@
 const INDEX_OFFSET: usize = 0x386B0FC;
 const VANILLA: u32 = 0x11000929; // add w9, w9, #2
-const ONE_BEHIND: u32 = 0x11000529; // add w9, w9, #1
+const NO_SHIFT: u32 = 0xD503201F; // nop : w9 conserve l'index brut
 
 pub fn install() {
     let base = unsafe {
@@ -17,22 +17,22 @@ pub fn install() {
         ]
     };
     if actual != expected {
-        skyline::println!("[remove-the-frame] Index +1 : signature inconnue, aucun patch");
+        skyline::println!("[remove-the-frame] Index +0 : signature inconnue, aucun patch");
         return;
     }
 
     if skyline::patching::Patch::in_text(INDEX_OFFSET)
-        .data(ONE_BEHIND)
+        .data(NO_SHIFT)
         .is_err()
     {
-        skyline::println!("[remove-the-frame] Index +1 : echec du patch, mode vanilla");
+        skyline::println!("[remove-the-frame] Index +0 : echec du patch, mode vanilla");
         return;
     }
 
     let written = unsafe { std::ptr::read_volatile(base.add(offset)) };
-    if written == ONE_BEHIND {
-        skyline::println!("[remove-the-frame] Index +1 : instruction remplacee (VSync inchangee)");
+    if written == NO_SHIFT {
+        skyline::println!("[remove-the-frame] Index +0 : instruction remplacee (VSync inchangee)");
     } else {
-        skyline::println!("[remove-the-frame] Index +1 : lecture de controle inattendue");
+        skyline::println!("[remove-the-frame] Index +0 : lecture de controle inattendue");
     }
 }
