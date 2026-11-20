@@ -148,3 +148,28 @@ Programme inspecté : `main`, Smash 13.0.5 AArch64, base Ghidra `0x7100000000`. 
 Deux directions possibles, à valider séparément avant tout patch : (1) observer en jeu les passages effectifs `WAIT -> JUMP_SQUAT (10) -> JUMP (11)` du **même combattant**, avec son BattleObjectModuleAccessor identifié, et les comparer aux fronts d'appui déjà validés ; ou (2) analyser en lecture seule le module de scripts de statut réellement chargé pour Mario, s'il est disponible. Un simple hook du wrapper `status_kind` **à l'entrée** n'a pas accès à sa valeur de retour puisqu'il s'agit d'un saut terminal `br` ; ne pas le présenter comme une mesure de statut sans instrumentation complémentaire vérifiée.
 
 **Résultat : le statut cible (10 puis 11) et le flag de commande saut par bouton (0x200000) sont identifiés dans le binaire 13.0.5, mais le point de transition réellement exécuté et sa correspondance avec une frame affichée ne sont toujours pas confirmés en jeu. Aucune nouvelle sonde ni modification de timing déployée à ce stade.**
+
+
+## Analyse directe du fichier extrait `lua2cpp_common.nro` — 20 novembre 2026
+
+Fichier reçu de l'utilisateur après extraction de `data.arc` avec Arc Explorer. **Analyse statique en lecture seule**, sans importer dans ni modifier le projet Ghidra. SHA-256 du NRO :
+`43876f961a80e413370629d32c23af9de6e4cc26b448bab88d5433714a566097`.
+En-tête `NRO0`, taille `0x813000` ; `MOD0` à `0x54506C` ; table de symboles dynamique et relocations présentes. **Tous les offsets ci-dessous sont relatifs à l'image du NRO**, non à l'image `main` de Smash déjà utilisée pour les hooks Skyline. La correspondance exacte de cette archive extraite avec la version réellement chargée sous Ryujinx 13.0.5 reste à vérifier : le NSP visible dans le chemin utilisateur porte `[v0]`, tandis que l'émulateur avait un update 13.0.5 actif lors des tests.
+
+### Fonctions et code disponibles dans le NRO (confirmés par la table de symboles et le désassemblage)
+
+- `L2CFighterCommon::sub_transition_group_check_ground_jump()` : `+0x534E0`, taille `0x1EC` (492 octets). Elle vérifie des conditions, appelle `sub_check_button_jump()` à l'adresse PLT `+0x531080` (`BL` à `+0x53544`), puis peut déclencher `L2CFighterBase::change_status(L2CValue,L2CValue)` par `BL +0x530250` aux adresses `+0x5359C` ou `+0x53610`. La fonction retourne un booléen encapsulé dans `L2CValue` : chemins à `+0x53630..+0x53638`. Elle constitue une étape **candidate de consommation de la commande de saut au sol**.
+- `L2CFighterCommon::sub_check_button_jump()` : `+0x54590`, taille `0x11C` (284 octets). Lit un élément de table `L2CValue` à l'index `0x20`, le combine avec la constante `const_value_table__ +0x218` via l'opérateur `L2CValue::operator&`, puis interroge `app::lua_bind::WorkModule__is_enable_transition_term_impl` via la PLT `+0x530840` (appel à `+0x5461C`). Cela relie directement une commande de saut à la vérification de transition autorisée ; ne permet pas encore d'associer le masque HID brut `0x20` à une action de Mario.
+- `L2CFighterCommon::status_pre_JumpSquat()` : `+0x21F6C0`, taille `0x110` (272 octets).
+- `L2CFighterCommon::status_JumpSquat()` : `+0x2245C0`, taille `0xB0` (176 octets). Appelle `sub_status_JumpSquat_check_stick_lr_update` et `status_JumpSquat_common` (PLT `+0x5369F0` et `+0x536A00`) ; appelle ensuite `sub_shift_status_main` (PLT `+0x52FFA0`) afin d'installer la suite du traitement. C'est une **entrée d'état** plus pertinente que le seul wrapper `StatusModule__change_status_request_impl` de la PR #10.
+- `L2CFighterCommon::status_JumpSquat_Main()` : `+0x224680`, taille `0x64C` (1612 octets). Contient plusieurs appels à `L2CFighterBase::change_status` (via la PLT `+0x530250`, notamment `+0x224794`, `+0x224854`, `+0x224980` et `+0x224B5C`). La cible réelle de chaque branche et le personnage visé doivent encore être corrélés.
+- `L2CFighterCommon::status_pre_Jump()` : `+0x220090`, 216 octets.
+- `L2CFighterCommon::status_Jump()` : `+0x172040`, 208 octets ; `status_Jump_Main()` : `+0x172A10`, 352 octets.
+
+Les adresses PLT ci-dessus ont été **résolues à partir des relocalisations `R_AARCH64_JUMP_SLOT`** du NRO, et ne sont pas déduites uniquement des noms voisins affichés lors du désassemblage. La table globale `const_value_table__` utilisée par ces fonctions est un symbole externe importé ; sa position et ses valeurs à l'exécution dépendent du chargement.
+
+### Interprétation, limites et suite
+
+Le chemin statique **vérification du saut au sol → vérification du bouton et du terme de transition → `L2CFighterBase::change_status` → routines `JumpSquat` puis `Jump`** est désormais documenté. Ce graphe confirme que le wrapper `StatusModule__change_status_request_impl`, observé seulement une fois dans la PR #10, n'est **pas une couverture suffisante des sauts**. Il ne prouve cependant ni que tous les sauts empruntent cette séquence (autres scripts/modes/mouvements), ni le moment exact où Mario passe en état 10 puis 11, ni la frame GPU affichée.
+
+**Avant d'installer de nouveaux hooks**, vérifier dans Ryujinx quel `lua2cpp_common.nro` et quelle base mémoire sont effectivement chargés. Les offsets NRO **ne doivent jamais être installés comme offsets `main` Skyline** ; le module est chargé séparément et potentiellement plus tard. Vérifier signatures des instructions, ordre de chargement, collisions avec Skyline/ARCropolis et éventuelles fonctions substituées par des scripts propres au combattant. Ensuite seulement préparer une nouvelle PR expérimentale, instrumenter les passages effectifs dans `JumpSquat` et `Jump` (en identifiant le bon combattant), et vérifier en jeu avant de parler de latence. Aucun patch de timing, déploiement ni fusion n'a été effectué durant cette analyse.
