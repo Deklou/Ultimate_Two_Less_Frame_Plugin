@@ -1,5 +1,15 @@
 # État technique — 20 novembre 2026
 
+## Audit d'efficacite — 20 novembre 2026
+
+**Etat actuel :** `test/observer-jump` / PR #13 n'applique aucune optimisation de latence. Ses dix hooks instrumentent VSync, rendu, presentation, scene, HID, rafraichissement, copie, demande de statut, JumpSquat et Jump. Les logs Ryujinx confirment l'installation et 20 entrees de chaque etat de saut sur la derniere session, avec 3 indices Present entre les deux. Ce decalage est coherent avec le jumpsquat normal de Mario (3 frames), mais ne mesure ni l'input lag ni l'image physiquement affichee. Le jalon CPU Present n'est pas un identifiant garanti d'image ecran.
+
+**Essais actifs archives :** PR #4 (dispatch) a donne un ecran noir ; PR #5/#6/#7 (flush, index +1/+0) ne demontrent aucun gain fiable. Pour les CSV disponibles (30 essais chacun), mediane mesuree PR #7 = 30,735 ms, vanilla = 23,313 ms, ecarts-types respectifs 29,59 et 29,54 ms. Le pas de capture varie approximativement de 8 a 18 ms, comparable a la frame cible de 16,67 ms ; protocole trop bruite et sans preuve de comparabilite physique de l'affichage pour conclure a un gain ou une perte.
+
+**Decisions d'efficacite :** conserver `main`, `test/ordre-pipeline` et UNE branche active `test/observer-jump` ; garder la PR #13 comme unique PR d'essai. Les changements suivants seront des commits sur cette meme branche, sans nouvelle PR/branche par sonde. Suspendre les patches de GPU et la multiplication de hooks tant qu'il n'existe pas une mesure A/B fiable de bouton physique -> reaction visuelle (idealement video haute vitesse 240 fps, essais repetes A/B/A, environnement Ryujinx identique). Pour comparer, ne modifier qu'un NRO et conserver Skyline/ARCropolis, VSync, PTC et autres options identiques. Etablir un seuil de decision de >= 1 frame reproductible sans acceleration du gameplay, stutter ni crash. Ne jamais transformer un comptage de callbacks en preuve de latence ecran.
+
+**Maintenance :** pas de suppression des fichiers locaux ni de `Cargo.lock` pendant l'audit ; trancher une fois son suivi Git pour eviter qu'il apparaisse comme fichier non versionne. Ce point est sans rapport avec la suppression des branches.
+
 Cible : Smash Ultimate 13.0.5, Title ID `01006A800016E000`, Build ID `21450C647B8C5940ED5B68218EA128FD`, Ryujinx portable 1.1.1403.
 
 Skyline : binaire identique à la release officielle beta (SHA-256 `9959ECB13EAB6DB81A07CEE04A789B1905FD605409FC84EFEB7EC43DA7E29280`). ARCropolis : 4.1.1.
