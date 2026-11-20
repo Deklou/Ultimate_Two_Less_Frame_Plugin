@@ -4,23 +4,23 @@ Outil Windows indépendant de Ryujinx : lit le bouton de saut via SDL puis déte
 
 Nécessite Python 3 sur Windows (pas WSL). Installer une seule fois :
 
-\`\`\`powershell
+```powershell
 py -m pip install pygame mss numpy
-\`\`\`
+```
 
-Dans GitHub Desktop, utiliser la branche \`test/mesure-latence-logicielle\` pour disposer de l'outil, ou copier \`tools/mesure_input.py\` depuis cette branche sans changer la branche de ton NRO. L'outil se lance depuis la racine du dépôt :
+Dans GitHub Desktop, utiliser la branche `test/mesure-latence-logicielle` pour disposer de l'outil, ou copier `tools/mesure_input.py` depuis cette branche sans changer la branche de ton NRO. L'outil se lance depuis la racine du dépôt :
 
-\`\`\`powershell
+```powershell
 py tools\mesure_input.py --version pr5 --essais 30
-\`\`\`
+```
 
-Il détecte le bouton de saut en demandant une pression, puis demande de placer le curseur sur le centre de Mario pour sélectionner une petite zone de capture. Revenir ensuite à la fenêtre Ryujinx. Mario doit être seul, à l'arrêt, sur un décor fixe (mode Commandes), avec caméra et réglages identiques. Effectuer une trentaine de sauts espacés de 2 à 3 secondes, toujours depuis un état immobile au sol. Chaque essai enregistre un délai, un indicateur de bruit et l'intervalle entre captures. Le fichier \`mesures/pr5_date.csv\` est créé automatiquement.
+Il détecte le bouton de saut en demandant une pression, puis demande de placer le curseur sur le centre de Mario pour sélectionner une petite zone de capture. Revenir ensuite à la fenêtre Ryujinx. Mario doit être seul, à l'arrêt, sur un décor fixe (mode Commandes), avec caméra et réglages identiques. Effectuer une trentaine de sauts espacés de 2 à 3 secondes, toujours depuis un état immobile au sol. Chaque essai enregistre un délai, un indicateur de bruit et l'intervalle entre captures. Le fichier `mesures/pr5_date.csv` est créé automatiquement.
 
-Pour les PR suivantes, répéter exactement le protocole avec \`--version pr6\`, puis \`--version pr7\`. Conserver la même zone pixel \`--zone x,y,largeur,hauteur\` : les coordonnées sont affichées au premier lancement. Comparer les CSV exacts obtenus avec :
+Pour les PR suivantes, répéter exactement le protocole avec `--version pr6`, puis `--version pr7`. Conserver la même zone pixel `--zone x,y,largeur,hauteur` : les coordonnées sont affichées au premier lancement. Comparer les CSV exacts obtenus avec :
 
-\`\`\`powershell
+```powershell
 py tools\mesure_input.py --comparer mesures\pr5_exemple.csv mesures\pr6_exemple.csv mesures\pr7_exemple.csv
-\`\`\`
+```
 
 La commande donne les médianes, percentiles 10/90, intervalles de capture et différences en millisecondes/frames à 60 FPS. Une baisse de 16,67 ms correspond approximativement à une frame. **Les noms CSV de la commande sont des exemples à remplacer par les fichiers générés.**
 
