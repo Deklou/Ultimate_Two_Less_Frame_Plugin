@@ -1,6 +1,7 @@
 mod render_probe;
 mod present_probe;
 mod pipeline_trace;
+mod dispatch_ready;
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -38,4 +39,5 @@ pub fn main() {
     render_probe::install();
     present_probe::install();
     pipeline_trace::install();
+    dispatch_ready::install();
 }

@@ -7,6 +7,10 @@ static RENDER_CALLS: AtomicU32 = AtomicU32::new(0);
 static SCENE_CALLS: AtomicU32 = AtomicU32::new(0);
 static PRESENT_CALLS: AtomicU32 = AtomicU32::new(0);
 
+pub fn presentation_count() -> u32 {
+    PRESENT_CALLS.load(Ordering::Acquire)
+}
+
 static LAST_RENDER: AtomicU32 = AtomicU32::new(0);
 static LAST_SCENE: AtomicU32 = AtomicU32::new(0);
 
