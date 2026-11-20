@@ -4,6 +4,7 @@ mod pipeline_trace;
 mod input_trace;
 mod nro_probe;
 mod jump_trace;
+mod jump_state_trace;
 
 use std::sync::atomic::{AtomicU32, Ordering};
 

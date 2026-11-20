@@ -131,6 +131,7 @@ pub fn on_present() {
     if matches {
         // Le hook n'est installe qu'apres correspondance complete avec le NRO extrait.
         crate::jump_trace::install(squat);
+        crate::jump_state_trace::install(jump);
     }
 }
 
